@@ -476,6 +476,176 @@ or competitive matching with a skill-based heuristic.
 ** Cooperative Matching
 #+TOC: headlines [currentsection]
 
+** Matching on attributes
+#+BEGIN_LaTeX
+#\include{coopmatch}
+#+END_LaTeX
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+This is still potentially a lot of games to match on. (Remember the population
+curve - we can expect popular factories to obey the familiar power law.)
+
+So we need a way to further cut down the possibilities. Well, one way is obvious...
+
+** The most important "attributes"
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Is the game open for matching?
+- Is there space in the game?
+- Factories partition the open game list by number of open slots
+- Players match in groups
+  - individually
+  - parties
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+The most important things are a) is the game public or private? and b) is there
+space in the game for the N players who asked to match?
+
+The matchmaker doesn't know about parties, but it does allow players to register
+for games in groups.
+
+So now the client says "find a game (for N people)" where the client is either a
+player acting on their own behalf, or the leader of a party acting on behalf of
+that party.
+
+Battle.net does know about parties, but that logic is elsewhere in the
+Battle.net cloud and the matchmaker doesn't need to worry about it. By the time
+this request arrives at the factory, it's well-formed.
+
+** Make it faster
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- We have a candidate set of games
+  - that are open for matching
+  - that can fit our players
+  - that are associated with some attributes
+- We want to match our attributes against the games
+
+** Make it faster
+#+BEAMER: \only<1> {
+- N-dimensional nearest neighbour search?
+#+BEAMER: }
+#+BEAMER: \only<2-> {
+- +N-dimensional nearest neighbour search?+
+#+BEAMER: }
+#+attr_beamer: :overlay <3->
+- Index the games list on demand by each attribute
+#+attr_beamer: :overlay <4->
+- Matchable attributes are few enough
+#+attr_beamer: :overlay <5->
+- Each attribute lookup yields a set of games
+#+attr_beamer: :overlay <6->
+- To find a match, compute the set intersection
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+I could have tried some kind of n-dimensional nearest neighbour search with
+locality-sensitive hashing, but it was difficult to make it work properly given
+the requirement that attributes can be marked "don't care".
+
+So I settled on the method of indexing the games by each attribute separately.
+Then for a given query, I can take each attribute, look up the set of games for
+that attribute, and compute the set intersection to give me a match for the
+whole query.
+
+** Indexed games
+#+BEGIN_LaTeX
+#\include{indexing}
+#+END_LaTeX
+
+** Indexed games
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Indices can be built on demand in response to queries
+  - total number of indices is bounded
+  - take advantage of query similarity
+- Indices are fast to update
+  - attributes change as game progresses
+  - sets (i.e. red-black trees) of game IDs
+- Indices are fast to search
+  - n-way set intersection only needs one result
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+The indices are not too many, and quick to update.
+
+Each index is a set (RB-tree) of game IDs. It can be built on demand in response
+to a query and cached for future use.
+
+N-way set intersection may be optimized since it only needs to compute a single
+matching element.
+
+Sets are sorted (they are RB-trees, not hash sets) on creation time, so that the
+oldest games get filled first.
+
+** The Problems?
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+#+BEAMER: \begin{itemize}
+#+BEAMER: \item[\checkmark] Find good games quickly
+#+BEAMER: \item[\checkmark] Deal with varying game types
+#+BEAMER: \item[\checkmark] Deal with large player population
+#+BEAMER: \only<4> {
+#+BEAMER: \item[?] Deal with small player population
+#+BEAMER: }
+#+BEAMER: \only<5-> {
+#+BEAMER: \item[\checkmark] Deal with small player population
+#+BEAMER: }
+#+BEAMER: \item Assign games to servers
+#+BEAMER: \end{itemize}
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+Dealing with small player populations is a problem for any matchmaker. We
+finally convinced our designers to optimize for large scale and not worry about
+the small scale, because if a problem does occur, it necessarily won't affect
+many people.
+
+The bottom line is that if there aren't many people to match with, the game
+quality is going to be poor no matter what we do.
+
+** Spread Load vs Fill Up
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Just match against games with the "right" number of open slots
+  - to fill, match with N-k, N-k-1, ...
+  - to spread, match with 1, 2, ...
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+The choice of whether to spread load or fill games is easily controlled by
+selecting whether to starting matching against empty games or potentially-full
+games.
+
+(Remember we keep separate matching lists of games partitioned by free slots).
+
+At first, the behaviour was to spread the load. But this resulted in most games
+never being full. So we changed the behaviour to prefer to fill games.
+
+This had another side effect: if you leave a game because you don't like the
+players, when you rematch, the game you just left is a really good match! It's
+likely you'll get put back in the same game. I don't think this was ever
+fixed...
+
 * Queueing
 ** Queueing
 #+TOC: headlines [currentsection]
@@ -494,39 +664,11 @@ or competitive matching with a skill-based heuristic.
 ** Competitive Matching
 #+TOC: headlines [currentsection]
 
-** Introduction
-- do stuff
 
-** The Problems
-find games quickly
-deal with large player population
-deal with small player population
-assign games to game servers evenly (or, fill up servers and spin up more?)
-player population curve moves through from normal to inferno (at launch)
-
-** What defines a game?
-explain attributes
-
-** Semantics not known to Battle.net
-just know how to compare and hash attributes
-
-** What a player does
-clients can join a game directly (presence through friends)
-clients search for games with given params
-clients don't need to specify factory, just params
-
-** What a game server does
-servers advertise params
-in retail, all servers serve all game types
-in dev, different versions
-
-** Modelling games
-game factories
-server connection causes factories to be made
-segmented player population
-hardcore/non
-acts
-difficulty
+* Notes                                                      :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
 
 ** Matchmaking
 matchmaker doesn't know about parties (just groups)
