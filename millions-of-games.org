@@ -1,0 +1,602 @@
+#+TITLE:     Millions of Games per Hour
+#+AUTHOR:    Ben Deane
+#+EMAIL:     bdeane@blizzard.com
+#+DATE:      5th June 2014
+#+DESCRIPTION:
+#+KEYWORDS: matchmaking
+#+LANGUAGE:  en
+#+OPTIONS:   H:2 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+SELECT_TAGS: export
+#+EXCLUDE_TAGS: noexport
+
+#+LaTeX_CLASS: beamer
+#+STARTUP: beamer
+#+BEAMER_THEME: Madrid
+
+#+LaTeX_HEADER: \usepackage{helvet}
+#+LaTeX_HEADER: \usepackage{tikz}
+#+LaTeX_HEADER: \usepackage{amsmath}
+# +LaTeX_HEADER: \usebackgroundtemplate{\includegraphics[width=\paperwidth,height=\paperheight]{blizzard-bg}}
+
+#+COLUMNS: %40ITEM %10BEAMER_env(Env) %9BEAMER_envargs(Env Args) %4BEAMER_col(Col) %10BEAMER_extra(Extra)
+
+# To generate notes pages only:
+# +LaTeX_CLASS_OPTIONS: [handout]
+# +LaTeX_HEADER: \setbeameroption{show only notes}
+# +LaTeX_HEADER: \usepackage{pgfpages}
+# +LaTeX_HEADER: \pgfpagesuselayout{2 on 1}[letterpaper,portrait,border shrink=5mm]
+
+# For normal presentation output:
+#+LaTeX_CLASS_OPTIONS: [presentation, bigger]
+
+
+* Introduction
+** Introduction
+#+TOC: headlines [currentsection]
+
+** History
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Server lists don't cut it any more
+- Player population is large
+- Game type proliferation
+- e-Sports expectations
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+Some games still use server lists, but these days the trend is away from
+wall-of-text style server lists.
+
+Partly because it encourages cliques and toxic behaviour. Mostly because it's a
+poor UI in the face of so many choices.
+
+The ideal is to open multiplayer gameplay to the single casual gamer.
+
+There is also the issue that game types (or modes) are proliferating. Not just
+deathmatch any more, now we have alternative modes: cooperative
+story-progression, loot runs, boss fights, and many forms of competitive play,
+some of which come from the community themselves, like the origin of DotA.
+
+Also, the e-Sports scene has grown, and with it have expectations of a
+matchmaking system: that it be skill-based with leagues and some proper idea of
+rank.
+
+** The Problems
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Find good games quickly
+- Deal with varying game types
+- Deal with large player population
+- Deal with small player population
+- Assign games to servers
+  - spread load evenly
+  - fill up servers
+  - deal with overload scenarios
+- Deal with community preferences
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+The most basic thing a matchmaker does is to find good games in a timely manner.
+
+A good game is a legal game. i.e. one that fulfils all the requirements the
+player asked for.
+
+A good game is a game that meets some higher quality bar: in a competitive
+scenario, it could be that the players involve differ in skill by no more than
+some maximum threshold. In a cooperative scenario, it could be that the event in
+progress still has a reasonable time left to play. Joining a game ten seconds
+before the boss is dead and it's over is cheap from the point of view of loot
+farming, and more importantly, it's not really fun or a game at that point.
+
+A MM has to deal with a large player population. Large in this case means
+millions of players playing close to the game's duty cycle. The game length will
+affect the MM load - if the game takes 10 minutes like Hearthstone, the player
+base will cycle through matches more quickly than if the average game length is
+potentially longer, like D3.
+
+A MM has to do something about small populations too. Mostly we optimize for
+scale of course, but we need to be able to make sensible choices about what to
+do when game types become unpopular or have low periods of the day, and when
+players are trying to get into a game then, we often have hard choices to make
+about game quality and speed of matching.
+
+Another problem we need to solve is how to apportion games to server hardware.
+According to our provisioning we could choose a couple of ways to go. If we have
+a fixed pool of server to run games on, it makes sense to try to evenly spread
+the load across them.
+
+But if we can spin up servers as needed, it makes sense to do the opposite - to
+try to use server capacity up to some threshold at least before assigning games
+to the next server in line.
+
+Either way, the matching system needs to deal with overload scenarios. Running
+games is the most work incurred by a player on the system, and it's likely that
+the system can support more players simply connected than actually playing. In
+the case of Battle.net games, the Battle.net infrastructure is for multiple
+games and supports many times more players than any one game's hardware can
+support concurrently. So there will be times when the finite capacity of game
+servers is used up and the MM system must queue players.
+
+Lastly, if the community starts to favour a particular game type, we would like
+to respond to that. So we would like the system to be flexible enough to allow
+new game types to be configured easily.
+
+** Cooperative vs Competitive
+*** Cooperative                                               :B_block:BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.4
+:BEAMER_env: block
+:END:
+#+attr_beamer: :overlay <1->
+- Drop-in, drop out
+#+attr_beamer: :overlay <2->
+- Social matches
+#+attr_beamer: :overlay <3->
+- Game type matching
+#+attr_beamer: :overlay <4->
+- Party-based play
+
+*** Competitive                                               :B_block:BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.4
+:BEAMER_env: block
+:END:
+#+attr_beamer: :overlay <1->
+- Join at start
+#+attr_beamer: :overlay <2->
+- Skill-based matches
+#+attr_beamer: :overlay <3->
+- Game size matching
+#+attr_beamer: :overlay <4->
+- Team-based play
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+Competitive and Cooperative games are quite different.
+
+For the type of games that Blizzard does, competitive games do not permit
+joining partway through.
+
+a) The design doesn't permit it: you can't start a StarCraft 2 game halfway
+through against an opponent with his economy in full swing. And Hearthstone is a
+head-to-head card game, so 1v0 doesn't quite work.
+
+b) Skill-based matching doesn't permit drop in and drop out: there's no
+well-defined way to compute the skill result of a partial game where the game
+has a binary outcome.
+
+But cooperative games almost require in-and-out privileges because the model
+is social gameplay.
+
+The main partitioning of games in competitive play is by number of players in
+the game (1v1, 2v2, etc). By contrast in cooperative play the main partitioning
+is by the game type (story progression, loot runs, special events, etc).
+
+Both matching types have similar makeup in terms of player numbers. In
+cooperative play, a small party of friends can match with others, and in
+competitive play, small teams of friends may match against others.
+
+** Evolution of players
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Players move through content over time
+- Players gain skill over time
+- Players return to content to farm it
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+Any MM system needs to deal with changes over time in the player base and the
+preferences of the players.
+
+** Evolution of players
+*** A block                                                :B_column:BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.8
+:BEAMER_env: column
+:END:
+#+attr_latex: width=\textwidth
+[[./playerpopulation.png]]
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+This graph shows the distribution of Diablo III games by difficulty in the last
+week. Lower difficulties on the left, higher on the right.
+
+We can see several interesting things on this graph. This is clearly a
+multi-modal distribution. First, on the far left we see that many players simply
+play on the default normal difficulty. These are likely beginners or casual
+players.
+
+On the left, we see a broadly normal-type distribution centred on Torment 3
+and 4. This is probably the sweet spot of advancement for the higher end
+players.
+
+There is a noticeable blip at Torment 1. There could be a couple of reasons for
+this: this is the easiest difficulty which drops class-specific set items. This
+is also the "hardest" named difficulty which probably gives it some form of
+mental stickiness.
+
+And of course, we have the huge peak at the end. This is probably because of a
+particular scenario in Diablo 3, the Crypt of the Ancients, which is being
+heavily farmed right now. Keep in mind that this graph shows number of games,
+not necessarily number of players.
+
+Anyway, if we step back, this graph shows how different game types get different
+usage, and also if we saw this graph evolve over time, we'd see the usage
+changing. On day 1, we'd see everyone playing the lower difficulties, and then
+we'd see the underlying normal curve moving to the right over time as the player
+population matures.
+
+So the thing to learn from this is that if we attempt to distribute the
+matchmaking load across hardware, the load profile is going to change over time.
+
+** Battle.net Tenets
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Keep it simple
+  - Functionality comes from composability, not monolithic behaviour
+  - The best code is no code
+- Be reliable
+  - Easy configuration
+  - No single points of failure
+- Be game agnostic
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+I could bring up many generalities about software development, but here are
+three particular tenets I think Battle.net holds dear.
+
+The first is to keep things simple. When we build games we try to make them very
+polished and present this sort of Disney-like "hermetically sealed" experience.
+When we build back-end systems, we try to make the operation transparent and
+simple.
+
+Simplicity is prerequisite for reliability of course, and reliability means both
+easy operation and configuration, and strength in breadth. We try to avoid
+systems that represent single points of failure.
+
+Failures do happen, and the most important thing you can do in response to
+failure is as little as possible. In particular, don't do more work in response
+to failure. It only makes things worse and cascade failures are likely to result.
+
+The third important thing we hold fast to is being game agnostic. Battle.net
+strenously avoids knowing anything about the games it hosts. We rigorously
+separate and abstract all things that require game knowledge and let the game
+teams handle what they actually mean. There is no game business logic in
+Battle.net systems.
+
+We'll see how each of these tenets influenced the design of Battle.net matchmaking.
+
+** System Overview
+#+BEGIN_LaTeX
+#\include{systemoverview}
+#+END_LaTeX
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+This diagram looks funny because it's so simplistic. But it's illustrating an
+important point.
+
+On the left are computers running Windows and Mac OS in peoples' homes.
+Obviously, they connect to Battle.net as clients.
+
+On the right are computers running Linux in datacenters, running game server
+code written by game teams. They ALSO connect to Battle.net as clients.
+
+Battle.net knows as little about the computers on the right as it does about the
+computers on the left. But it knows how to connect them and how to route
+traffic, and how to do things in a game agnostic way.
+
+The only difference between the left computers and the right computers, to
+Battle.net, is that we trust the computers on the right a little more. We don't
+trust them a whole lot! But at least we know they're not malicious!
+
+* Abstracting Matching
+** Abstracting Matching
+#+TOC: headlines [currentsection]
+
+** What defines a game?
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- A set of attributes
+- Partitioning attributes
+  - Difficulty
+  - Hardcore/Regular/Starter
+  - Version
+- Matchable attributes
+  - Act number
+  - Quest step
+  - Other
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+Some attributes that define a game we could say are partitioning attributes.
+That is, the game dictates that these attributes will never change during a
+given game session. These partition the game population into disjoint matching
+sets.
+
+Some attributes are grist for the matching mill: they are the actual attributes
+that we need to munge to fit a player into a game.
+
+These examples are from Diablo III. Note: in practice, version is not treated as
+a partitioning attribute because in production, there is never more than one
+version. It is important for development to allow matching based on version, but
+since the purpose of partitioning attributes is primarily to reduce the matching
+space and improve performance, this doesn't matter in dev.
+
+** Attributes
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Attributes are key-value pairs
+- Battle.net doesn't know what they mean
+- Battle.net knows how to
+  - Compare them
+  - Hash them
+  - Wrangle collections of them
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+So what is an attribute, really? It's just a key-value pair, where the key is a
+string and the value is a variant datatype.
+
+The key thing about attributes is that Battle.net has no semantic knowledge of them.
+
+Battle.net just knows how to manipulate them in various ways.
+
+** What a client does
+#+BEGIN_LaTeX
+#\include{clientrequest}
+#+END_LaTeX
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+This is what clients want to do.
+
+** What a server does
+#+BEGIN_LaTeX
+#\include{serveradvert}
+#+END_LaTeX
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+This is what servers want to do. Notice that a server's attributes here don't
+need to be as specific as a client's requested attributes.
+
+A client's attributes need to define a specific game; a server's attributes can
+be interpreted more loosely. This server doesn't specify an Act attribute, so
+it's saying it can serve games from any Act.
+
+** Game Factories
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Game factories represent partitions
+  - normal-nonhardcore-v201-factory
+  - hard-nonhardcore-v201-factory
+  - etc
+- Game factories are
+  - specified in configuration
+  - instantiated in response to server connections
+  - combinatorial on relatively few axes
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+To partition the game matching universes we have this idea of partitioning
+attributes.
+
+Provided we have relatively few axes of partitioning, so that the combinatorial
+nature of the expansion doesn't overwhelm us, we can distribute load over
+hardware by assigning matching withing each set of partitioning attributes to a
+different machine.
+
+We call this abstraction a game factory. Game factories make and match games,
+and each factory is characterised by a given set of immutable partitioning
+attributes.
+
+So we have one factory per difficulty level, per game mode, etc. This is defined
+by configuration which is game specific. The game design dictates how many and
+what type of partitioning attributes we have and therefore what factories we
+have. We do need to take some care not to segment the player population too
+much.
+
+** When a server connects
+#+BEGIN_LaTeX
+#\include{serverfactories}
+#+END_LaTeX
+
+** When a client asks for a game
+#+BEGIN_LaTeX
+#\include{clientfactory}
+#+END_LaTeX
+
+** Game Factories
+:PROPERTIES:
+:BEAMER_act: [<+->]
+:END:
+- Game factories reduce the matching problem
+- Each factory matches the games it knows about
+  - Based on the smaller number of matchable attributes
+- Factories can use different strategies
+- The factory abstraction is strategy-agnostic
+  - cooperative
+  - competitive
+
+*** Notes                                                        :B_noteNH:
+:PROPERTIES:
+:BEAMER_env: noteNH
+:END:
+Factories reduce the matching problem space by cutting out the static attributes
+that will never change for a given game.
+
+Each factory is in charge of making games and matching on the games it knows
+about.
+
+Nothing about the factory abstraction dictates a matching strategy; so far we
+have just reduced the search space in response to client queries, and provided a
+flexible mechanism for routing games to servers that can support them.
+
+We are free to implement different kinds of factories to do different kinds of
+matching, for example cooperative matching with the drop-in, drop-out mechanic,
+or competitive matching with a skill-based heuristic.
+
+* Cooperative Matching
+** Cooperative Matching
+#+TOC: headlines [currentsection]
+
+* Queueing
+** Queueing
+#+TOC: headlines [currentsection]
+
+** 1st attempt
+
+** Problems
+
+** 2nd attempt
+
+* Testing
+** Testing
+#+TOC: headlines [currentsection]
+
+* Competitive Matching
+** Competitive Matching
+#+TOC: headlines [currentsection]
+
+** Introduction
+- do stuff
+
+** The Problems
+find games quickly
+deal with large player population
+deal with small player population
+assign games to game servers evenly (or, fill up servers and spin up more?)
+player population curve moves through from normal to inferno (at launch)
+
+** What defines a game?
+explain attributes
+
+** Semantics not known to Battle.net
+just know how to compare and hash attributes
+
+** What a player does
+clients can join a game directly (presence through friends)
+clients search for games with given params
+clients don't need to specify factory, just params
+
+** What a game server does
+servers advertise params
+in retail, all servers serve all game types
+in dev, different versions
+
+** Modelling games
+game factories
+server connection causes factories to be made
+segmented player population
+hardcore/non
+acts
+difficulty
+
+** Matchmaking
+matchmaker doesn't know about parties (just groups)
+notification system to tell other group members they're in game
+
+byattributestore
+games by number of free slots
+indexed by attributes
+compute intersection of sets
+memoize queries
+this can also be used for stats
+
+choice: fill games or spread players
+problem: get back into game you just quit
+
+** Queueing
+
+** Queuing - 1st cut
+one master acts as the queue shard
+no live redundancy, but can fail over to another shard if disrupted
+servers get polled for load
+gating queues: hard limit on # of "cross region" players based on bandwidth
+
+** queuing - problems
+open beta game server-killing bug
+making games is a spike load
+game servers can't advertise load accurately and in a timely way
+single point of failure
+
+** queueing - 2nd attempt
+change: servers advertise how many games they can take
+queue system allocates game slots to factories based on popularity
+abandoned gating queues
+this allows distribution of the queue among fronts
+
+** testing
+unit testing
+
+
+
+** Wibble
+order input by score
+batch
+
+batch size affects quality of game
+batch size affects time to match/CPU load
+1v1 is much easier to deal with
+4v4 random is hard to deal with
+
+players are rated on an Elo-like system
+notion of mean player skill, amount that a given player deviates from the mean
+within 1 sigma is a reasonable match
+player skill estimate is unknown at first
+player skill estimate converges after some number of games
+ - ~25 for 1v1
+ - ~85 for 4v4 random
+
+teams are often made of friends with different skill levels
+novice-narg problem
+
+players at far end of bell curve can't find good games
+cf. any other sport - need practice partners
+
+players like their ratings to increase
+
+but all rating systems have a problem: players tend to get better, accumulating
+ratings points, then some quit the game and take their ratings points with them,
+so there is effectively a drain on the points available
+
+competitive games have a problem: if the MM is perfect, then 1/2 of players will
+lose their first game, and 1/4 of players will lose their first 2 games. this is
+potentially a no-fun scenario. so it's up to the game to provide some sense of
+progress even in the face of loss
