@@ -1,7 +1,10 @@
+# (setq org-export-allow-bind-keywords t)
+#+BIND: org-latex-title-command "\\author[Ben Deane]{\\href{mailto:bdeane@blizzard.com}{Ben Deane} \\\\ {\\scriptsize{Principal Engineer, \\href{http://www.blizzard.com/}{Blizzard Entertainment}}} \\\\ {\\footnotesize{\\texttt{\\href{mailto:bdeane@blizzard.com}{bdeane@blizzard.com}, \\href{http://www.twitter.com/ben_deane}{@ben\\_deane}}}}}\n\\maketitle"
+
 #+TITLE:     Millions of Games per Hour
+#+DATE:      30th April 2015
 #+AUTHOR:    Ben Deane
-#+EMAIL:     bdeane@blizzard.com
-#+DATE:      5th June 2014
+
 #+DESCRIPTION:
 #+KEYWORDS: matchmaking
 #+LANGUAGE:  en
@@ -15,6 +18,7 @@
 #+LaTeX_CLASS: beamer
 #+STARTUP: beamer
 #+BEAMER_THEME: Madrid
+#+BEAMER_COLOR_THEME: wolverine
 
 #+LaTeX_HEADER: \usepackage{helvet}
 #+LaTeX_HEADER: \usepackage{tikz}
@@ -24,14 +28,14 @@
 #+COLUMNS: %40ITEM %10BEAMER_env(Env) %9BEAMER_envargs(Env Args) %4BEAMER_col(Col) %10BEAMER_extra(Extra)
 
 # To generate notes pages only:
-#+LaTeX_CLASS_OPTIONS: [handout]
-#+LaTeX_HEADER: \setbeameroption{show only notes}
-#+LaTeX_HEADER: \usepackage{pgfpages}
-#+LaTeX_HEADER: \pgfpagesuselayout{2 on 1}[letterpaper,portrait,border shrink=5mm]
+# +LaTeX_CLASS_OPTIONS: [handout]
+# +LaTeX_HEADER: \setbeameroption{show only notes}
+# +LaTeX_HEADER: \usepackage{pgfpages}
+# +LaTeX_HEADER: \pgfpagesuselayout{2 on 1}[letterpaper,portrait,border shrink=5mm]
 
 # For normal presentation output:
-# +LaTeX_CLASS_OPTIONS: [presentation, bigger]
-
+#+LaTeX_CLASS_OPTIONS: [presentation, bigger]
+#+LaTeX_HEADER: \setbeamertemplate{navigation symbols}{}%remove navigation symbols
 
 *** Notes                                                        :B_noteNH:
 :PROPERTIES:
@@ -973,7 +977,7 @@
 \begin{center}
 \vspace{10mm}
 Ben Deane\\
-bdeane@blizzard.com
+bdeane@blizzard.com, @ben\_deane
 \end{center}
 
 *** Notes                                                        :B_noteNH:
@@ -988,6 +992,12 @@ bdeane@blizzard.com
 - thanks for listening
 - NEXT: bonus section
 
+* Epilogue                                                       :B_appendix:
+:PROPERTIES:
+:BEAMER_env: appendix
+:END:
+\addtocounter{framenumber}{-1}
+
 ** Testing
 - Bonus section!
 - A little bit about how I tested...
@@ -999,6 +1009,7 @@ bdeane@blizzard.com
 - NEXT: testing needs
 
 ** The need to test
+\addtocounter{framenumber}{-1}
 - I can't run at scale on my desktop machine
 - I need to be sure that the system runs at scale
 
@@ -1010,6 +1021,7 @@ bdeane@blizzard.com
 - NEXT: testing choices
 
 ** Possibilities
+\addtocounter{framenumber}{-1}
 - Use repurposed ("spare") hardware
 - Use Amazon EC2 or similar
 - Or I could just figure out how to test on my machine
@@ -1025,6 +1037,7 @@ bdeane@blizzard.com
 - NEXT: TDD
 
 ** TDD
+\addtocounter{framenumber}{-1}
 - I had already built the parts with unit tests
 - I/O was separated out
 - Configuration was dependency-injected
@@ -1040,6 +1053,7 @@ bdeane@blizzard.com
 - NEXT: absolute perf testing
 
 ** Unit testing for performance
+\addtocounter{framenumber}{-1}
 - Absolute perf not so good
   - my machine isn't a production machine
   - my machine can't simulate a million players
@@ -1057,6 +1071,7 @@ bdeane@blizzard.com
 - NEXT: algo testing
 
 ** Unit testing for performance
+\addtocounter{framenumber}{-1}
 - Modified unit test framework
   - Call tests \(N\) times and time the result
   - Vary \(N\) from \(2^a\) to \(2^b\)
@@ -1078,6 +1093,7 @@ bdeane@blizzard.com
 - NEXT: final slide (really)
 
 ** Thanks for listening (more)
+\addtocounter{framenumber}{-1}
 - Factories allow abstraction of strategies
 - Queueing to manage load
 - Competitive and Cooperative are different animals
@@ -1087,7 +1103,7 @@ bdeane@blizzard.com
 \begin{center}
 \vspace{10mm}
 Ben Deane\\
-bdeane@blizzard.com
+bdeane@blizzard.com, @ben\_deane
 \end{center}
 
 *** Notes                                                        :B_noteNH:
